@@ -129,3 +129,30 @@ exports.syncGitHubData = async (req, res) => {
     res.status(500).json({ error: "GitHub sync failed" });
   }
 };
+
+
+// ------------------------------
+//  REMOVE GITHUB INTEGRATION
+// ------------------------------
+exports.removeGitHubIntegration = async (req, res) => {
+  try {
+    const integration = await Integration.findOne({ provider: "github" });
+    if (!integration)
+      return res.status(404).json({ error: "GitHub integration not found" });
+
+    await Integration.deleteOne({ _id: integration._id });
+
+    if (req.query.clean === "true") {
+      await Repo.deleteMany({});
+      await Commit.deleteMany({});
+      await Pull.deleteMany({});
+      await Issue.deleteMany({});
+      await Organization.deleteMany({});
+    }
+
+    res.json({ message: "GitHub integration removed successfully" });
+  } catch (err) {
+    console.error("Remove integration error:", err.message);
+    res.status(500).json({ error: "Failed to remove integration" });
+  }
+};
