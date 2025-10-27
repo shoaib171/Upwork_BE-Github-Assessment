@@ -10,9 +10,21 @@ const getToken = async () => {
 };
 
 /** a. Get Organizations */
+/** a. Get Organizations - Now supports public organizations */
 exports.getOrganizations = async (req, res) => {
   try {
     const token = await getToken();
+
+    // If orgName query param provided, fetch that specific public organization
+    if (req.query.orgName) {
+      const orgName = req.query.orgName.toLowerCase();
+      console.log(`Fetching organization: ${orgName}`);
+      const data = await fetchGitHubData(`orgs/${orgName}`, token);
+      return res.json([data]); // Return as array for consistency
+    }
+
+    // Otherwise fetch user's organizations (fallback)
+    console.log("Fetching user's organizations");
     const data = await fetchGitHubData("user/orgs?per_page=100", token);
     res.json(data);
   } catch (err) {

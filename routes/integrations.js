@@ -16,6 +16,7 @@ router.get("/status", integrationController.getIntegrationStatus);
  * @access  Public
  */
 router.get("/sync", integrationController.syncGitHubData);
+router.get("/sync-org", integrationController.syncPublicOrgData);
 
 /**
  * @route   DELETE /api/integrations/remove

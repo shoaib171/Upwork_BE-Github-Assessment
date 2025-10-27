@@ -444,3 +444,340 @@ exports.getSyncStats = async (req, res) => {
     res.status(500).json({ error: "Failed to get sync stats" });
   }
 };
+
+/** NEW: Sync specific public organization data to MongoDB */
+exports.syncPublicOrgData = async (req, res) => {
+  try {
+    const { orgName } = req.query;
+
+    if (!orgName) {
+      return res
+        .status(400)
+        .json({ error: "orgName query parameter required" });
+    }
+
+    const integration = await Integration.findOne({
+      provider: "github",
+    }).populate("user");
+
+    if (!integration) {
+      return res.status(404).json({ error: "GitHub integration not found" });
+    }
+
+    const token = integration.access_token;
+    integration.sync_status = "syncing";
+    await integration.save();
+
+    let syncResults = {
+      organizations: 0,
+      repos: 0,
+      commits: 0,
+      issues: 0,
+      pulls: 0,
+      users: 0,
+      changelogs: 0,
+    };
+
+    try {
+      // --- Fetch Specific Organization ---
+      console.log(`[SYNC] Fetching organization: ${orgName}`);
+      const org = await fetchGitHubData(`orgs/${orgName}`, token);
+
+      await Organization.deleteMany({});
+      const orgDoc = {
+        orgId: org.id,
+        login: org.login,
+        name: org.name || org.login,
+        description: org.description || "",
+        avatar_url: org.avatar_url,
+        html_url: org.html_url,
+        repos_url: org.repos_url,
+        blog: org.blog,
+        location: org.location,
+        twitter_username: org.twitter_username,
+        company: org.company,
+        email: org.email,
+        public_repos: org.public_repos,
+        followers: org.followers,
+        following: org.following,
+        created_at: org.created_at,
+        updated_at: org.updated_at,
+        type: "Organization",
+      };
+
+      await Organization.insertMany([orgDoc]);
+      syncResults.organizations = 1;
+
+      // --- Fetch Organization Repos ---
+      console.log(`[SYNC] Fetching repos for ${orgName}...`);
+      const repos = await fetchGitHubData(
+        `orgs/${orgName}/repos?per_page=100&sort=stars&direction=desc`,
+        token
+      );
+
+      const reposToSync = repos.slice(0, 10); // First 10 repos
+
+      await Repo.deleteMany({});
+      const repoDocs = reposToSync.map((r) => ({
+        repoId: r.id,
+        name: r.name,
+        full_name: r.full_name,
+        html_url: r.html_url,
+        description: r.description,
+        language: r.language,
+        private: r.private,
+        owner: r.owner,
+        stargazers_count: r.stargazers_count,
+        watchers_count: r.watchers_count,
+        forks_count: r.forks_count,
+        open_issues_count: r.open_issues_count,
+        created_at: r.created_at,
+        updated_at: r.updated_at,
+        pushed_at: r.pushed_at,
+        size: r.size,
+        default_branch: r.default_branch,
+        topics: r.topics || [],
+      }));
+
+      if (repoDocs.length > 0) {
+        await Repo.insertMany(repoDocs);
+      }
+      syncResults.repos = repoDocs.length;
+
+      // --- Fetch Issues ---
+      console.log(`[SYNC] Fetching issues...`);
+      const allIssues = [];
+
+      for (const repo of reposToSync) {
+        try {
+          const issues = await fetchGitHubData(
+            `repos/${repo.owner.login}/${repo.name}/issues?state=all&per_page=100`,
+            token
+          );
+
+          allIssues.push(
+            ...issues.map((i) => ({
+              issueId: i.id,
+              number: i.number,
+              title: i.title,
+              body: i.body,
+              state: i.state,
+              user: i.user,
+              assignee: i.assignee,
+              assignees: i.assignees,
+              labels: i.labels,
+              repoName: repo.name,
+              repoId: repo.id,
+              html_url: i.html_url,
+              created_at: i.created_at,
+              updated_at: i.updated_at,
+              closed_at: i.closed_at,
+              comments: i.comments,
+              pull_request: i.pull_request,
+            }))
+          );
+        } catch (err) {
+          console.warn(
+            `[SYNC] Issues fetch failed for ${repo.name}: ${err.message}`
+          );
+        }
+      }
+
+      await Issue.deleteMany({});
+      if (allIssues.length > 0) {
+        await Issue.insertMany(allIssues);
+      }
+      syncResults.issues = allIssues.length;
+
+      // --- Fetch Pull Requests ---
+      console.log(`[SYNC] Fetching pull requests...`);
+      const allPulls = [];
+
+      for (const repo of reposToSync) {
+        try {
+          const pulls = await fetchGitHubData(
+            `repos/${repo.owner.login}/${repo.name}/pulls?state=all&per_page=100`,
+            token
+          );
+
+          allPulls.push(
+            ...pulls.map((p) => ({
+              pullId: p.id,
+              number: p.number,
+              title: p.title,
+              body: p.body,
+              state: p.state,
+              user: p.user,
+              assignee: p.assignee,
+              assignees: p.assignees,
+              labels: p.labels,
+              repoName: repo.name,
+              repoId: repo.id,
+              html_url: p.html_url,
+              created_at: p.created_at,
+              updated_at: p.updated_at,
+              closed_at: p.closed_at,
+              merged_at: p.merged_at,
+              merged: p.merged,
+              additions: p.additions,
+              deletions: p.deletions,
+              changed_files: p.changed_files,
+              commits: p.commits,
+              comments: p.comments,
+            }))
+          );
+        } catch (err) {
+          console.warn(
+            `[SYNC] PRs fetch failed for ${repo.name}: ${err.message}`
+          );
+        }
+      }
+
+      await Pull.deleteMany({});
+      if (allPulls.length > 0) {
+        await Pull.insertMany(allPulls);
+      }
+      syncResults.pulls = allPulls.length;
+
+      // --- Fetch Commits ---
+      console.log(`[SYNC] Fetching commits...`);
+      const allCommits = [];
+
+      for (const repo of reposToSync.slice(0, 5)) {
+        try {
+          const commits = await fetchGitHubData(
+            `repos/${repo.owner.login}/${repo.name}/commits?per_page=100`,
+            token
+          );
+
+          allCommits.push(
+            ...commits.map((c) => ({
+              sha: c.sha,
+              message: c.commit.message,
+              author: c.commit.author,
+              committer: c.commit.committer,
+              url: c.url,
+              html_url: c.html_url,
+              repoName: repo.name,
+              repoId: repo.id,
+              timestamp: new Date(c.commit.author.date),
+            }))
+          );
+        } catch (err) {
+          console.warn(
+            `[SYNC] Commits fetch failed for ${repo.name}: ${err.message}`
+          );
+        }
+      }
+
+      await Commit.deleteMany({});
+      if (allCommits.length > 0) {
+        await Commit.insertMany(allCommits);
+      }
+      syncResults.commits = allCommits.length;
+
+      // --- Fetch Changelogs ---
+      console.log(`[SYNC] Fetching changelogs...`);
+      const allChangelogs = [];
+
+      for (const repo of reposToSync.slice(0, 5)) {
+        try {
+          const events = await fetchGitHubData(
+            `repos/${repo.owner.login}/${repo.name}/issues/events?per_page=100`,
+            token
+          );
+
+          allChangelogs.push(
+            ...events.map((e) => ({
+              eventId: e.id,
+              event: e.event,
+              action: e.action || e.event,
+              issue: e.issue,
+              actor: e.actor,
+              repository: e.repository,
+              created_at: e.created_at,
+              url: e.url,
+              repoName: repo.name,
+            }))
+          );
+        } catch (err) {
+          console.warn(
+            `[SYNC] Changelogs fetch failed for ${repo.name}: ${err.message}`
+          );
+        }
+      }
+
+      await Changelog.deleteMany({});
+      if (allChangelogs.length > 0) {
+        await Changelog.insertMany(allChangelogs);
+      }
+      syncResults.changelogs = allChangelogs.length;
+
+      // --- Fetch Organization Members ---
+      console.log(`[SYNC] Fetching organization members...`);
+      const allOrgUsers = [];
+
+      try {
+        const members = await fetchGitHubData(
+          `orgs/${orgName}/members?per_page=100`,
+          token
+        );
+
+        allOrgUsers.push(
+          ...members.map((m) => ({
+            userId: m.id,
+            login: m.login,
+            name: m.name,
+            avatar_url: m.avatar_url,
+            html_url: m.html_url,
+            type: m.type,
+            email: m.email,
+            company: m.company,
+            location: m.location,
+            bio: m.bio,
+            followers: m.followers,
+            following: m.following,
+            public_repos: m.public_repos,
+            orgName: orgName,
+            orgId: org.id,
+          }))
+        );
+      } catch (err) {
+        console.warn(
+          `[SYNC] Members fetch failed for ${orgName}: ${err.message}`
+        );
+      }
+
+      await OrgUser.deleteMany({});
+      if (allOrgUsers.length > 0) {
+        await OrgUser.insertMany(allOrgUsers);
+      }
+      syncResults.users = allOrgUsers.length;
+
+      // Update integration
+      integration.last_synced_at = new Date();
+      integration.sync_status = "success";
+      integration.synced_organization = orgName;
+      integration.data_counts = syncResults;
+      await integration.save();
+
+      res.status(200).json({
+        message: `GitHub data for ${orgName} synced successfully`,
+        organization: orgName,
+        ...syncResults,
+        lastSyncedAt: integration.last_synced_at,
+      });
+    } catch (syncErr) {
+      integration.sync_status = "failed";
+      await integration.save();
+      console.error(`[SYNC] Error: ${syncErr.message}`);
+      res.status(500).json({
+        error: "GitHub sync failed",
+        details: syncErr.message,
+      });
+    }
+  } catch (err) {
+    console.error("[SYNC] Endpoint error:", err.message);
+    res.status(500).json({ error: "GitHub sync failed" });
+  }
+};
