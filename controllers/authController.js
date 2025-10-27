@@ -1,4 +1,3 @@
-// controllers/authController.js
 const axios = require("axios");
 const Integration = require("../models/Integration");
 const User = require("../models/User");
@@ -15,15 +14,22 @@ exports.githubRedirect = (req, res) => {
   const url = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(
     callbackUrl
   )}&scope=${encodeURIComponent(scope)}&state=${state}`;
+
+  console.log("🔗 Redirecting to GitHub OAuth:", url);
   res.redirect(url);
 };
 
 // Step 2 – Handle GitHub Callback
 exports.githubCallback = async (req, res) => {
   const code = req.query.code;
-  if (!code) return res.status(400).send("Missing code");
+  if (!code) {
+    console.error("❌ No code in callback");
+    return res.redirect(`${frontendUrl}/?error=no_code`);
+  }
 
   try {
+    console.log("🔄 Exchanging code for access token...");
+
     // Exchange code for access token
     const tokenResp = await axios.post(
       "https://github.com/login/oauth/access_token",
@@ -37,10 +43,15 @@ exports.githubCallback = async (req, res) => {
     );
 
     const token = tokenResp.data;
-    if (!token.access_token)
-      return res.status(400).json({ error: "Token not returned", token });
+    if (!token.access_token) {
+      console.error("❌ Token not returned:", token);
+      return res.redirect(`${frontendUrl}/?error=token_exchange_failed`);
+    }
+
+    console.log("✅ Access token received");
 
     // Fetch GitHub user info with more details
+    console.log("🔄 Fetching user info from GitHub...");
     const userResp = await axios.get("https://api.github.com/user", {
       headers: {
         Authorization: `Bearer ${token.access_token}`,
@@ -67,9 +78,12 @@ exports.githubCallback = async (req, res) => {
       type,
     } = userResp.data;
 
+    console.log("✅ User info received:", { login, name, email });
+
     // Save or update user with all details
     let user = await User.findOne({ githubId: id });
     if (!user) {
+      console.log("🆕 Creating new user...");
       user = await User.create({
         githubId: id,
         username: login,
@@ -88,7 +102,9 @@ exports.githubCallback = async (req, res) => {
         public_gists,
         type,
       });
+      console.log("✅ User created:", user._id);
     } else {
+      console.log("🔄 Updating existing user...");
       user.username = login;
       user.name = name;
       user.email = email;
@@ -106,9 +122,11 @@ exports.githubCallback = async (req, res) => {
       user.type = type;
       user.updatedAt = new Date();
       await user.save();
+      console.log("✅ User updated:", user._id);
     }
 
     // Save or update integration
+    console.log("🔄 Creating/updating integration...");
     const integration = await Integration.findOneAndUpdate(
       { user: user._id, provider: "github" },
       {
@@ -123,11 +141,16 @@ exports.githubCallback = async (req, res) => {
       { upsert: true, new: true }
     );
 
-    // Redirect back to frontend with integration flag
-    res.redirect(`${frontendUrl}/?integrated=true&userId=${user._id}`);
+    console.log("✅ Integration saved:", integration._id);
+
+    // Redirect back to frontend with success flag and auto-sync trigger
+    console.log("🔗 Redirecting back to frontend with auto-sync flag...");
+    res.redirect(
+      `${frontendUrl}/?integrated=true&userId=${user._id}&autoSync=true`
+    );
   } catch (err) {
-    console.error("GitHub Auth Error:", err.response?.data || err.message);
-    res.status(500).json({ error: "OAuth exchange failed" });
+    console.error("❌ GitHub Auth Error:", err.response?.data || err.message);
+    res.redirect(`${frontendUrl}/?error=auth_failed`);
   }
 };
 

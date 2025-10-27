@@ -1,4 +1,5 @@
 const Integration = require("../models/Integration");
+const User = require("../models/User");
 const Repo = require("../models/Repo");
 const Commit = require("../models/Commit");
 const Issue = require("../models/Issue");
@@ -14,6 +15,7 @@ exports.getIntegrationStatus = async (req, res) => {
     const integration = await Integration.findOne({
       provider: "github",
     }).populate("user");
+
     if (!integration) {
       return res.json({
         connected: false,
@@ -24,6 +26,7 @@ exports.getIntegrationStatus = async (req, res) => {
         dataCounts: null,
       });
     }
+
     res.json({
       connected: true,
       connectedAt: integration.connected_at,
@@ -51,10 +54,13 @@ exports.syncGitHubData = async (req, res) => {
     const integration = await Integration.findOne({
       provider: "github",
     }).populate("user");
+
     if (!integration) {
       return res.status(404).json({ error: "GitHub integration not found" });
     }
+
     const token = integration.access_token;
+
     // Update sync status
     integration.sync_status = "syncing";
     await integration.save();
@@ -226,7 +232,7 @@ exports.syncGitHubData = async (req, res) => {
           let page = 1;
           let hasMore = true;
           let commitCount = 0;
-          const maxCommitsPerRepo = 1000; // Limit commits per repo
+          const maxCommitsPerRepo = 1000;
 
           while (hasMore && commitCount < maxCommitsPerRepo) {
             try {
@@ -257,7 +263,6 @@ exports.syncGitHubData = async (req, res) => {
               commitCount += commits.length;
               page++;
 
-              // Rate limit safety
               if (allCommits.length > 5000) {
                 console.log("Commit limit reached, stopping fetch");
                 hasMore = false;
@@ -386,29 +391,53 @@ exports.syncGitHubData = async (req, res) => {
   }
 };
 
-// Remove GitHub integration
+// Remove GitHub integration - FIXED VERSION
 exports.removeGitHubIntegration = async (req, res) => {
   try {
+    console.log("🗑️ Starting integration removal process...");
+
     const integration = await Integration.findOne({ provider: "github" });
-    if (!integration)
+
+    if (!integration) {
+      console.log("⚠️ No integration found to remove");
       return res.status(404).json({ error: "GitHub integration not found" });
-
-    await Integration.deleteOne({ _id: integration._id });
-
-    // Only delete data if clean=true
-    if (req.query.clean === "true") {
-      await Repo.deleteMany({});
-      await Commit.deleteMany({});
-      await Pull.deleteMany({});
-      await Issue.deleteMany({});
-      await Organization.deleteMany({});
-      await Changelog.deleteMany({});
-      await OrgUser.deleteMany({});
     }
 
-    res.json({ message: "GitHub integration removed successfully" });
+    const userId = integration.user;
+    console.log("👤 User ID from integration:", userId);
+
+    // Step 1: Delete the Integration document
+    await Integration.deleteOne({ _id: integration._id });
+    console.log("✅ Integration document deleted");
+
+    // Step 2: Delete the User document
+    if (userId) {
+      await User.deleteOne({ _id: userId });
+      console.log("✅ User document deleted");
+    }
+
+    // Step 3: Delete all GitHub data (Always clean data on removal)
+    console.log("🧹 Cleaning all GitHub data from database...");
+
+    await Promise.all([
+      Repo.deleteMany({}),
+      Commit.deleteMany({}),
+      Pull.deleteMany({}),
+      Issue.deleteMany({}),
+      Organization.deleteMany({}),
+      Changelog.deleteMany({}),
+      OrgUser.deleteMany({}),
+    ]);
+
+    console.log("✅ All GitHub data cleaned from database");
+
+    res.json({
+      message: "GitHub integration removed successfully",
+      cleaned: true,
+      deletedUser: !!userId,
+    });
   } catch (err) {
-    console.error("Remove integration error:", err.message);
+    console.error("❌ Remove integration error:", err.message);
     res.status(500).json({ error: "Failed to remove integration" });
   }
 };
@@ -515,7 +544,7 @@ exports.syncPublicOrgData = async (req, res) => {
         token
       );
 
-      const reposToSync = repos.slice(0, 10); // First 10 repos
+      const reposToSync = repos.slice(0, 10);
 
       await Repo.deleteMany({});
       const repoDocs = reposToSync.map((r) => ({
