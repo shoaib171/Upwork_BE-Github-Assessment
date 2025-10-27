@@ -10,6 +10,16 @@ const repoSchema = new mongoose.Schema(
     language: String,
     private: Boolean,
     owner: Object,
+    stargazers_count: Number,
+    watchers_count: Number,
+    forks_count: Number,
+    open_issues_count: Number,
+    created_at: Date,
+    updated_at: Date,
+    pushed_at: Date,
+    size: Number,
+    default_branch: String,
+    topics: [String],
   },
   { timestamps: true }
 );

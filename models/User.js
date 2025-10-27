@@ -8,6 +8,16 @@ const userSchema = new mongoose.Schema(
     email: String,
     avatarUrl: String,
     profileUrl: String,
+    bio: String,
+    location: String,
+    company: String,
+    blog: String,
+    twitter_username: String,
+    followers: Number,
+    following: Number,
+    public_repos: Number,
+    public_gists: Number,
+    type: { type: String, enum: ["User", "Organization"], default: "User" },
   },
   { timestamps: true }
 );

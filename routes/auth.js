@@ -1,8 +1,27 @@
-const express = require('express');
+// routes/auth.js
+const express = require("express");
 const router = express.Router();
-const authController = require('../controllers/authController');
+const authController = require("../controllers/authController");
 
-router.get('/github', authController.githubRedirect);
-router.get('/github/callback', authController.githubCallback);
+/**
+ * @route   GET /api/auth/github
+ * @desc    Redirect to GitHub OAuth
+ * @access  Public
+ */
+router.get("/github", authController.githubRedirect);
+
+/**
+ * @route   GET /api/auth/github/callback
+ * @desc    GitHub OAuth callback
+ * @access  Public
+ */
+router.get("/github/callback", authController.githubCallback);
+
+/**
+ * @route   GET /api/auth/user
+ * @desc    Get current authenticated user
+ * @access  Private
+ */
+router.get("/user", authController.getCurrentUser);
 
 module.exports = router;
