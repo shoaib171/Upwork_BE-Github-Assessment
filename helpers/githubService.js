@@ -1,6 +1,5 @@
-// helpers/githubService.js
-const axios = require("axios");
 
+const axios = require("axios");
 const API_BASE_URL = "https://api.github.com";
 const MAX_RETRIES = 3;
 const RETRY_DELAY = 1000;

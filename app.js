@@ -27,9 +27,9 @@ mongoose
     useNewUrlParser: true,
     useUnifiedTopology: true,
   })
-  .then(() => console.log("✅ MongoDB connected"))
+  .then(() => console.log("MongoDB connected"))
   .catch((err) => {
-    console.error("❌ MongoDB connection error:", err);
+    console.error("MongoDB connection error:", err);
     process.exit(1);
   });
 
@@ -74,9 +74,9 @@ app.use((req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`✅ Server running on http://localhost:${PORT}`);
+  console.log(`Server running on http://localhost:${PORT}`);
   console.log(
-    `📍 Frontend URL: ${process.env.FRONTEND_URL || "http://localhost:4200"}`
+    `sFrontend URL: ${process.env.FRONTEND_URL || "http://localhost:4200"}`
   );
-  console.log(`🗄️  MongoDB: ${process.env.MONGO_URI}`);
+  console.log(`MongoDB: ${process.env.MONGO_URI}`);
 });

@@ -1,12 +1,10 @@
 const axios = require("axios");
 const Integration = require("../models/Integration");
 const User = require("../models/User");
-
 const clientId = process.env.GITHUB_CLIENT_ID;
 const clientSecret = process.env.GITHUB_CLIENT_SECRET;
 const callbackUrl = process.env.GITHUB_CALLBACK_URL;
 const frontendUrl = process.env.FRONTEND_URL || "http://localhost:4200";
-
 // Step 1 – Redirect to GitHub
 exports.githubRedirect = (req, res) => {
   const state = Math.random().toString(36).substring(2);
@@ -18,12 +16,11 @@ exports.githubRedirect = (req, res) => {
   console.log("🔗 Redirecting to GitHub OAuth:", url);
   res.redirect(url);
 };
-
 // Step 2 – Handle GitHub Callback
 exports.githubCallback = async (req, res) => {
   const code = req.query.code;
   if (!code) {
-    console.error("❌ No code in callback");
+    console.error("No code in callback");
     return res.redirect(`${frontendUrl}/?error=no_code`);
   }
 
@@ -44,11 +41,11 @@ exports.githubCallback = async (req, res) => {
 
     const token = tokenResp.data;
     if (!token.access_token) {
-      console.error("❌ Token not returned:", token);
+      console.error("Token not returned:", token);
       return res.redirect(`${frontendUrl}/?error=token_exchange_failed`);
     }
 
-    console.log("✅ Access token received");
+    console.log("Access token received");
 
     // Fetch GitHub user info with more details
     console.log("🔄 Fetching user info from GitHub...");
@@ -102,7 +99,7 @@ exports.githubCallback = async (req, res) => {
         public_gists,
         type,
       });
-      console.log("✅ User created:", user._id);
+      console.log("User created:", user._id);
     } else {
       console.log("🔄 Updating existing user...");
       user.username = login;
@@ -122,7 +119,7 @@ exports.githubCallback = async (req, res) => {
       user.type = type;
       user.updatedAt = new Date();
       await user.save();
-      console.log("✅ User updated:", user._id);
+      console.log(" User updated:", user._id);
     }
 
     // Save or update integration
@@ -141,7 +138,7 @@ exports.githubCallback = async (req, res) => {
       { upsert: true, new: true }
     );
 
-    console.log("✅ Integration saved:", integration._id);
+    console.log("Integration saved:", integration._id);
 
     // Redirect back to frontend with success flag and auto-sync trigger
     console.log("🔗 Redirecting back to frontend with auto-sync flag...");
@@ -149,7 +146,7 @@ exports.githubCallback = async (req, res) => {
       `${frontendUrl}/?integrated=true&userId=${user._id}&autoSync=true`
     );
   } catch (err) {
-    console.error("❌ GitHub Auth Error:", err.response?.data || err.message);
+    console.error("GitHub Auth Error:", err.response?.data || err.message);
     res.redirect(`${frontendUrl}/?error=auth_failed`);
   }
 };

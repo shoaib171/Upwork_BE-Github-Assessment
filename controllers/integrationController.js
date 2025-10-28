@@ -232,9 +232,7 @@ exports.syncGitHubData = async (req, res) => {
           let page = 1;
           let hasMore = true;
           let commitCount = 0;
-          const maxCommitsPerRepo = 1000;
-
-          while (hasMore && commitCount < maxCommitsPerRepo) {
+          while (hasMore) {
             try {
               const commits = await fetchGitHubData(
                 `repos/${repo.owner.login}/${repo.name}/commits?per_page=100&page=${page}`,
