@@ -58,13 +58,10 @@ exports.syncGitHubData = async (req, res) => {
     if (!integration) {
       return res.status(404).json({ error: "GitHub integration not found" });
     }
-
     const token = integration.access_token;
-
     // Update sync status
     integration.sync_status = "syncing";
     await integration.save();
-
     let syncResults = {
       organizations: 0,
       repos: 0,
@@ -392,30 +389,30 @@ exports.syncGitHubData = async (req, res) => {
 // Remove GitHub integration - FIXED VERSION
 exports.removeGitHubIntegration = async (req, res) => {
   try {
-    console.log("🗑️ Starting integration removal process...");
+    console.log("Starting integration removal process...");
 
     const integration = await Integration.findOne({ provider: "github" });
 
     if (!integration) {
-      console.log("⚠️ No integration found to remove");
+      console.log(" No integration found to remove");
       return res.status(404).json({ error: "GitHub integration not found" });
     }
 
     const userId = integration.user;
-    console.log("👤 User ID from integration:", userId);
+    console.log("User ID from integration:", userId);
 
     // Step 1: Delete the Integration document
     await Integration.deleteOne({ _id: integration._id });
-    console.log("✅ Integration document deleted");
+    console.log("Integration document deleted");
 
     // Step 2: Delete the User document
     if (userId) {
       await User.deleteOne({ _id: userId });
-      console.log("✅ User document deleted");
+      console.log(" User document deleted");
     }
 
     // Step 3: Delete all GitHub data (Always clean data on removal)
-    console.log("🧹 Cleaning all GitHub data from database...");
+    console.log("Cleaning all GitHub data from database...");
 
     await Promise.all([
       Repo.deleteMany({}),
@@ -427,7 +424,7 @@ exports.removeGitHubIntegration = async (req, res) => {
       OrgUser.deleteMany({}),
     ]);
 
-    console.log("✅ All GitHub data cleaned from database");
+    console.log("All GitHub data cleaned from database");
 
     res.json({
       message: "GitHub integration removed successfully",
@@ -435,7 +432,7 @@ exports.removeGitHubIntegration = async (req, res) => {
       deletedUser: !!userId,
     });
   } catch (err) {
-    console.error("❌ Remove integration error:", err.message);
+    console.error("Remove integration error:", err.message);
     res.status(500).json({ error: "Failed to remove integration" });
   }
 };

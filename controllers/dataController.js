@@ -62,24 +62,20 @@ exports.getCollectionSchema = async (req, res) => {
   }
 };
 
-// Query collection with advanced features
+// Query collection with features
 exports.queryCollection = async (req, res) => {
   try {
     const { collection } = req.params;
     const Model = modelMap[collection];
-
     if (!Model) {
       return res.status(400).json({ error: "Invalid collection" });
     }
-
     // Pagination
     const page = Math.max(parseInt(req.query.page || "1"), 1);
     const limit = Math.min(parseInt(req.query.limit || "50"), 1000);
     const skip = (page - 1) * limit;
-
     // Build filter
     let filter = {};
-
     // JSON filter
     if (req.query.filter) {
       try {

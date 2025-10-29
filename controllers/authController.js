@@ -25,7 +25,7 @@ exports.githubCallback = async (req, res) => {
   }
 
   try {
-    console.log("🔄 Exchanging code for access token...");
+    console.log("Exchanging code for access token...");
 
     // Exchange code for access token
     const tokenResp = await axios.post(
@@ -46,7 +46,6 @@ exports.githubCallback = async (req, res) => {
     }
 
     console.log("Access token received");
-
     // Fetch GitHub user info with more details
     console.log("🔄 Fetching user info from GitHub...");
     const userResp = await axios.get("https://api.github.com/user", {
@@ -80,7 +79,7 @@ exports.githubCallback = async (req, res) => {
     // Save or update user with all details
     let user = await User.findOne({ githubId: id });
     if (!user) {
-      console.log("🆕 Creating new user...");
+      console.log("Creating new user...");
       user = await User.create({
         githubId: id,
         username: login,
@@ -101,7 +100,7 @@ exports.githubCallback = async (req, res) => {
       });
       console.log("User created:", user._id);
     } else {
-      console.log("🔄 Updating existing user...");
+      console.log("Updating existing user...");
       user.username = login;
       user.name = name;
       user.email = email;
@@ -141,7 +140,7 @@ exports.githubCallback = async (req, res) => {
     console.log("Integration saved:", integration._id);
 
     // Redirect back to frontend with success flag and auto-sync trigger
-    console.log("🔗 Redirecting back to frontend with auto-sync flag...");
+    console.log("Redirecting back to frontend with auto-sync flag...");
     res.redirect(
       `${frontendUrl}/?integrated=true&userId=${user._id}&autoSync=true`
     );
