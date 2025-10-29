@@ -257,11 +257,6 @@ exports.syncGitHubData = async (req, res) => {
 
               commitCount += commits.length;
               page++;
-
-              if (allCommits.length > 5000) {
-                console.log("Commit limit reached, stopping fetch");
-                hasMore = false;
-              }
             } catch (pageErr) {
               console.warn(
                 `Commits page ${page} failed for ${repo.name}: ${pageErr.message}`
