@@ -49,8 +49,6 @@ Fetches paginated GitHub data (per_page=100)
 
 Inserts each batch via insertMany
 
-Stops at 5000 commits to prevent memory leaks
-
 Handles repos/issues/pulls/commits/orgs concurrently
 
 Updates sync status and data counts in Integration collection
